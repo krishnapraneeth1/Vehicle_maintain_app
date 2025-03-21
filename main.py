@@ -19,19 +19,21 @@ from fpdf import FPDF
 import mysql.connector
 
 
-
+# Connect to MySQL Server
 db_connection = mysql.connector.connect(
     host="localhost",
     user="root",
     password="root@123"
 )
 cursor = db_connection.cursor()
+
+# Create Database
 cursor.execute("CREATE DATABASE IF NOT EXISTS Vehicle_Service_DB")
 print("Database 'Vehicle_Service_DB' created or already exists.")
 cursor.close()
 db_connection.close()
 
-
+# Reconnect to the newly created database
 db_connection = mysql.connector.connect(
     host="localhost",
     user="root",
@@ -40,12 +42,22 @@ db_connection = mysql.connector.connect(
 )
 cursor = db_connection.cursor()
 
-
+# Function to check if a table exists
 def table_exists(table_name):
     cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
     return cursor.fetchone() is not None
 
+# Dictionary of tables and their respective creation queries
+# Dictionary of tables and their respective creation queries
+# Dictionary of tables and their respective creation queries
+# Dictionary of tables and their respective creation queries
 tables = {
+    "Roles": """
+    CREATE TABLE IF NOT EXISTS Roles (
+        roleid INT PRIMARY KEY AUTO_INCREMENT,
+        rolename ENUM('user', 'mechanic', 'admin') NOT NULL UNIQUE
+    )""",
+
     "User": """
     CREATE TABLE IF NOT EXISTS User (
         userid INT PRIMARY KEY AUTO_INCREMENT,
@@ -58,18 +70,23 @@ tables = {
         city VARCHAR(100),
         state VARCHAR(100),
         zipcode VARCHAR(10),
-        role ENUM('user', 'mechanic', 'admin') NOT NULL, 
+        roleid INT NOT NULL,
+        FOREIGN KEY (roleid) REFERENCES Roles(roleid) ON DELETE CASCADE ON UPDATE CASCADE
     )""",
+
     "Services": """
     CREATE TABLE IF NOT EXISTS Services (
         serviceid INT PRIMARY KEY AUTO_INCREMENT,
         servicename VARCHAR(255) NOT NULL,
         typeofvehicle VARCHAR(50) NOT NULL
     )""",
+
     "Mechanics": """
     CREATE TABLE IF NOT EXISTS Mechanics (
         mechid INT PRIMARY KEY AUTO_INCREMENT,
-        serviceid INT,
+        serviceid INT NOT NULL,
+        userid INT NOT NULL,  -- Linking mechanics to the user table
+        FOREIGN KEY (userid) REFERENCES User(userid) ON DELETE CASCADE,
         firstname VARCHAR(100) NOT NULL,
         lastname VARCHAR(100) NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
@@ -82,34 +99,38 @@ tables = {
         approval_status ENUM('Pending', 'Approved', 'Rejected') NOT NULL DEFAULT 'Pending',
         FOREIGN KEY (serviceid) REFERENCES Services(serviceid) ON DELETE CASCADE
     )""",
+
     "Mechanic_Businesses": """
     CREATE TABLE IF NOT EXISTS Mechanic_Businesses (
-    business_id INT PRIMARY KEY AUTO_INCREMENT,
-    mechid INT NOT NULL,
-    business_name VARCHAR(255) NOT NULL,
-    service_id INT NOT NULL,
-    zip_code VARCHAR(10) NOT NULL,
-    service_type VARCHAR(255) NOT NULL,
-    vehicle_type VARCHAR(255) NOT NULL,
-    approval_status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
-    FOREIGN KEY (mechid) REFERENCES Mechanics(mechid) ON DELETE CASCADE
-    );
-    """,
+        business_id INT PRIMARY KEY AUTO_INCREMENT,
+        mechid INT NOT NULL,
+        business_name VARCHAR(255) NOT NULL,
+        service_id INT NOT NULL,
+        zip_code VARCHAR(10) NOT NULL,
+        service_type VARCHAR(255) NOT NULL,
+        vehicle_type VARCHAR(255) NOT NULL,
+        approval_status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
+        FOREIGN KEY (mechid) REFERENCES Mechanics(mechid) ON DELETE CASCADE,
+        FOREIGN KEY (service_id) REFERENCES Services(serviceid) ON DELETE CASCADE
+    )""",
+
     "Appointments": """
     CREATE TABLE IF NOT EXISTS Appointments (
         appointmentid INT PRIMARY KEY AUTO_INCREMENT,
-        userid INT,
-        mechid INT,
+        userid INT NOT NULL,
+        mechid INT NOT NULL,
         appointmentdate DATE NOT NULL,
         appointmenttime TIME NOT NULL,
         status ENUM('Pending', 'In Progress', 'Completed') NOT NULL,
         typeofvehicle VARCHAR(50) NOT NULL,
         FOREIGN KEY (userid) REFERENCES User(userid) ON DELETE CASCADE,
         FOREIGN KEY (mechid) REFERENCES Mechanics(mechid) ON DELETE CASCADE
-    )"""
+    )""",
 }
 
 
+
+# Create tables if they do not exist
 for table_name, create_query in tables.items():
     if not table_exists(table_name):
         cursor.execute(create_query)
@@ -117,11 +138,27 @@ for table_name, create_query in tables.items():
     else:
         print(f"Table '{table_name}' already exists, skipping creation.")
 
-
+# Commit and close connection
 db_connection.commit()
 cursor.close()
 db_connection.close()
+
 print("Database setup completed successfully!")
+
+# Insert predefined roles if they don't exist
+db_connection = mysql.connector.connect(
+    host="localhost",
+    user="root",
+    password="root@123",
+    database="Vehicle_Service_DB"
+)
+cursor = db_connection.cursor()
+
+cursor.execute("INSERT IGNORE INTO Roles (roleid, rolename) VALUES (1, 'user'), (2, 'mechanic'), (3, 'admin')")
+db_connection.commit()
+cursor.close()
+db_connection.close()
+
 
 
 ctk.set_appearance_mode("light")
@@ -189,36 +226,24 @@ class VehicleServiceApp(ctk.CTk):
             messagebox.showerror("Error", "Please enter email and password!")
             return
 
-
-        if email == "admin" and password == "admin":
-            self.admin_dashboard()
-            return
-
-
         db_connection = mysql.connector.connect(
             host="localhost", user="root", password="root@123", database="Vehicle_Service_DB"
         )
         cursor = db_connection.cursor()
 
-        cursor.execute("SELECT userid FROM User WHERE email = %s AND password = %s", (email, password))
-        user_result = cursor.fetchone()
+        cursor.execute("SELECT userid, roleid FROM User WHERE email = %s AND password = %s", (email, password))
+        result = cursor.fetchone()
 
-        if user_result:
-            self.user_id = user_result[0]  # Store user ID globally
-            self.user_dashboard(email)  # Redirect to User Dashboard
-            cursor.close()
-            db_connection.close()
-            return
+        if result:
+            self.user_id = result[0]
+            roleid = result[1]
 
-        cursor.execute(
-            "SELECT mechid FROM Mechanics WHERE email = %s AND password = %s",
-            (email, password),
-        )
-        mechanic_result = cursor.fetchone()
-
-        if mechanic_result:
-            self.user_id = mechanic_result[0]  # Store mechanic ID globally
-            self.mechanic_dashboard()  # Redirect to Mechanic Dashboard
+            if roleid == 1:
+                self.user_dashboard(email)
+            elif roleid == 2:
+                self.mechanic_dashboard()
+            elif roleid == 3:
+                self.admin_dashboard()
         else:
             messagebox.showerror("Login Failed", "Invalid email or password.")
 
@@ -389,7 +414,14 @@ class VehicleServiceApp(ctk.CTk):
 
         self.service_type_label = ctk.CTkLabel(self.frame, text="Service Type Offered", font=("Arial", 14))
         self.service_type_label.place(relx=0.05, rely=0.55)
-        self.service_type_dropdown = ctk.CTkComboBox(self.frame, values=["Oil Change", "Tire Replacement", "General Checkup"], width=250)
+        self.service_type_dropdown = ctk.CTkComboBox(self.frame, values=[
+            "Oil Change", 
+            "Tire Replacement", 
+            "General Checkup",
+            "Brake Service",
+            "Engine Tune-up",
+            "Wheel Alignment"
+        ], width=250)
         self.service_type_dropdown.place(relx=0.35, rely=0.55)
 
         self.vehicle_type_label = ctk.CTkLabel(self.frame, text="Type of Vehicles Serviced", font=("Arial", 14))
@@ -418,7 +450,7 @@ class VehicleServiceApp(ctk.CTk):
     #         return
 
     #     db_connection = mysql.connector.connect(
-    #         host="localhost", user="root", password="root@123", database="Vehicle_Service_DB"
+    #         host="localhost", user="root", password="admin", database="Vehicle_Service_DB"
     #     )
     #     cursor = db_connection.cursor()
     #     query = "SELECT firstname, serviceid, zipcode FROM Mechanics WHERE mechid = %s AND approval_status = 'Approved'"
@@ -444,7 +476,7 @@ class VehicleServiceApp(ctk.CTk):
 
     def submit_business(self):
         if not hasattr(self, 'user_id') or not self.user_id:
-            messagebox.showerror("Error", "User ID not found. Please log in again.")
+            messagebox.showerror("Error", "Mechanic ID not found. Please log in again.")
             return
 
         business_name = self.business_name_entry.get()
@@ -462,41 +494,40 @@ class VehicleServiceApp(ctk.CTk):
         cursor = db_connection.cursor()
 
         try:
-            # ✅ First, check if the service type exists in the `services` table
-            cursor.execute("SELECT serviceid FROM services WHERE servicename = %s", (service_type,))
+            # First check if a service with this name exists
+            cursor.execute("SELECT serviceid FROM Services WHERE servicename = %s", (service_type,))
             service_result = cursor.fetchone()
 
             if not service_result:
-                # If service doesn't exist, insert it
-                cursor.execute("INSERT INTO services (servicename, typeofvehicle) VALUES (%s, %s)", 
+                # If service doesn't exist, create it
+                cursor.execute("INSERT INTO Services (servicename, typeofvehicle) VALUES (%s, %s)", 
                             (service_type, vehicle_type))
                 db_connection.commit()
-                service_id = cursor.lastrowid  # Get the newly inserted service ID
+                service_id = cursor.lastrowid
             else:
                 service_id = service_result[0]
 
-            # ✅ Insert into `mechanic_businesses` with the valid service_id
+            # Insert the business registration
             cursor.execute(
                 """
-                INSERT INTO mechanic_businesses (mechid, business_name, service_id, zip_code, service_type, vehicle_type, approval_status) 
+                INSERT INTO Mechanic_Businesses (mechid, business_name, service_id, zip_code, service_type, vehicle_type, approval_status) 
                 VALUES (%s, %s, %s, %s, %s, %s, 'Pending')
                 """,
-                (self.user_id, business_name, service_id, zip_code, service_type, vehicle_type),
+                (self.user_id, business_name, service_id, zip_code, service_type, vehicle_type)
             )
+
+            # Update the mechanic's service ID
+            cursor.execute("UPDATE Mechanics SET serviceid = %s WHERE mechid = %s", (service_id, self.user_id))
 
             db_connection.commit()
             messagebox.showinfo("Success", "Business Registration Submitted! Waiting for Admin Approval.")
 
         except mysql.connector.Error as err:
             messagebox.showerror("Error", f"Database Error: {err}")
-
-        cursor.close()
-        db_connection.close()
-
-
-
-
-
+            print(f"Detailed error: {err}")  # For debugging
+        finally:
+            cursor.close()
+            db_connection.close()
 
 
     def toggle_mechanic_fields(self):
@@ -527,7 +558,7 @@ class VehicleServiceApp(ctk.CTk):
     def register_user(self):
         firstname = self.fname_entry.get()
         lastname = self.lname_entry.get()
-        email = self.email_entry.get()
+        email = self.email_entry.get().lower()  # Convert email to lowercase for consistency
         phoneno = self.phone_entry.get()
         password = self.password_entry.get()
         confirm_password = self.confirm_password_entry.get()
@@ -535,8 +566,6 @@ class VehicleServiceApp(ctk.CTk):
         city = self.city_entry.get()
         state = self.state_entry.get()
         zipcode = self.zip_entry.get()
-
-        # Check if the "Are you a Mechanic?" checkbox is selected
         is_mechanic = self.mechanic_check.get()
 
         if not firstname or not lastname or not email or not phoneno or not password or not confirm_password:
@@ -547,37 +576,38 @@ class VehicleServiceApp(ctk.CTk):
             messagebox.showerror("Error", "Passwords do not match!")
             return
 
-        # Connect to the database
-        db_connection = mysql.connector.connect(host="localhost", user="root", password="root@123", database="Vehicle_Service_DB")
+        db_connection = mysql.connector.connect(
+            host="localhost", user="root", password="root@123", database="Vehicle_Service_DB"
+        )
         cursor = db_connection.cursor()
 
         try:
-            if is_mechanic:
-                # If the user is a mechanic, insert into `Mechanics` table
-                query = """
-                INSERT INTO Mechanics (firstname, lastname, email, phoneno, password, address1, city, state, zipcode, approval_status) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Pending')
-                """
-                values = (firstname, lastname, email, phoneno, password, address, city, state, zipcode)
-            else:
-                # If the user is a normal user, insert into `User` table
-                query = """
-                INSERT INTO User (firstname, lastname, email, phoneno, password, address1, city, state, zipcode, role) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'user')
-                """
-                values = (firstname, lastname, email, phoneno, password, address, city, state, zipcode)
+            # 🔥 Assign roleid correctly
+            if "admin" in email:  # ✅ If email contains 'admin', assign roleid = 3
+                roleid = 3
+            elif is_mechanic:  # ✅ Mechanic role
+                roleid = 2
+            else:  # ✅ Default to normal user
+                roleid = 1  
 
-            cursor.execute(query, values)
+            # ✅ Insert user with the correct roleid
+            cursor.execute(
+                "INSERT INTO User (firstname, lastname, email, phoneno, password, address1, city, state, zipcode, roleid) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (firstname, lastname, email, phoneno, password, address, city, state, zipcode, roleid),
+            )
             db_connection.commit()
 
-            messagebox.showinfo("Success", "Registration Successful! Please log in.")
-            self.login_screen()  # Redirect to login screen
+            messagebox.showinfo("Success", f"Registration Successful! You are registered as {['User', 'Mechanic', 'Admin'][roleid-1]}. Please log in.")
+            self.login_screen()
 
         except mysql.connector.Error as err:
             messagebox.showerror("Error", f"Database Error: {err}")
 
         cursor.close()
         db_connection.close()
+
+
+
 
 
 
@@ -619,14 +649,25 @@ class VehicleServiceApp(ctk.CTk):
 
         self.service_label = ctk.CTkLabel(self, text="Service Type", font=("Arial", 14), bg_color="#D1D1D1")
         self.service_label.place(relx=0.35, rely=0.2)
-        self.service_entry = ctk.CTkEntry(self, width=150)
-        self.service_entry.place(relx=0.45, rely=0.2)
+        
+        # Create dropdown for service type
+        services = [
+            "Oil Change",
+            "Tire Replacement",
+            "General Checkup",
+            "Brake Service",
+            "Engine Tune-up",
+            "Wheel Alignment"
+        ]
+        self.service_dropdown = ctk.CTkComboBox(self, values=services, width=150)
+        self.service_dropdown.place(relx=0.45, rely=0.2)
+        self.service_dropdown.set(services[0])
 
         self.search_button = ctk.CTkButton(self, text="Search", width=100, command=self.search_mechanics)
         self.search_button.place(relx=0.65, rely=0.2)
 
-        self.book_service_button = ctk.CTkButton(self, text="Book Service", width=150, command=self.book_service)
-        self.book_service_button.place(relx=0.8, rely=0.2)
+        # self.book_service_button = ctk.CTkButton(self, text="Book Service", width=150, command=self.book_service)
+        # self.book_service_button.place(relx=0.8, rely=0.2)
 
         # View Current Bookings Section
         self.view_bookings_label = ctk.CTkLabel(self, text="View Current Bookings", font=("Arial", 16, "bold"), bg_color="#D1D1D1")
@@ -648,7 +689,7 @@ class VehicleServiceApp(ctk.CTk):
 
     def search_mechanics(self):
         zip_code = self.zip_entry.get()
-        service_type = self.service_entry.get()
+        service_type = self.service_dropdown.get()  # Changed from service_entry to service_dropdown
 
         if not zip_code:
             messagebox.showerror("Error", "Please enter a Zip Code!")
@@ -660,7 +701,7 @@ class VehicleServiceApp(ctk.CTk):
         cursor = db_connection.cursor()
 
         try:
-            # ✅ Fetch only **approved** businesses from `mechanic_businesses`
+            
             query = """
             SELECT B.business_name, S.servicename, B.zip_code, B.vehicle_type
             FROM mechanic_businesses B
@@ -685,11 +726,11 @@ class VehicleServiceApp(ctk.CTk):
     def populate_mechanics_table(self, results):
         """ Populate the UI Table with Mechanics List """
         
-        # ✅ Destroy previous widgets if they exist
+        
         for widget in self.mechanics_table.winfo_children():
             widget.destroy()
 
-        # ✅ Create Treeview Table
+        
         self.mechanics_tree = ttk.Treeview(
             self.mechanics_table, 
             columns=("Business Name", "Service Offered", "Zip Code", "Vehicle Type"), 
@@ -697,37 +738,40 @@ class VehicleServiceApp(ctk.CTk):
         )
         self.mechanics_tree.pack(side="left", fill="both", expand=True)
 
-        # ✅ Add Scrollbar
+        
         scrollbar = ttk.Scrollbar(self.mechanics_table, orient="vertical", command=self.mechanics_tree.yview)
         self.mechanics_tree.configure(yscroll=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
 
-        # ✅ Set Column Headers
+        
         self.mechanics_tree.heading("Business Name", text="Business Name")
         self.mechanics_tree.heading("Service Offered", text="Service Offered")
         self.mechanics_tree.heading("Zip Code", text="Zip Code")
         self.mechanics_tree.heading("Vehicle Type", text="Vehicle Type")
 
-        # ✅ Set Column Widths
+       
         self.mechanics_tree.column("Business Name", width=150)
         self.mechanics_tree.column("Service Offered", width=150)
         self.mechanics_tree.column("Zip Code", width=100)
         self.mechanics_tree.column("Vehicle Type", width=150)
 
-        # ✅ Populate Table with Data
+        
         for row in results:
             self.mechanics_tree.insert("", "end", values=row)
 
-        # ✅ Ensure Table Exists Before Using it
+        
+        self.mechanics_tree.unbind("<ButtonRelease-1>")
         self.mechanics_tree.bind("<ButtonRelease-1>", self.get_selected_mechanic)
 
-        # ✅ Place "Book Service" Button
+
+        
         self.book_service_button = ctk.CTkButton(self, text="Book Service", width=150, command=self.book_service)
-        self.book_service_button.place(relx=0.8, rely=0.3)
+        self.book_service_button.place(relx=0.8, rely=0.2)
 
 
     def get_selected_mechanic(self, event=None):
-        """ Retrieves the selected mechanic from the table. """
+        """ Retrieves the selected mechanic from the table when a user selects one. """
+        
         if not hasattr(self, 'mechanics_tree'):
             messagebox.showerror("Error", "Mechanics table not found!")
             return None
@@ -743,30 +787,112 @@ class VehicleServiceApp(ctk.CTk):
             messagebox.showerror("Error", "No mechanic details found in the selection.")
             return None
 
-        self.selected_mechanic = mechanic_data  # ✅ Store Selected Mechanic Globally
-        return mechanic_data  # ✅ Returns (Business Name, Service Offered, Zip Code, Vehicle Type)
+        self.selected_mechanic = mechanic_data  # Store the selected mechanic globally
+        return mechanic_data  # Return Selected Mechanic Data
+
+    def get_booked_slots(self, date, mechid):
+        """ Retrieve all booked time slots for a given date and mechanic. """
+        db_connection = mysql.connector.connect(
+            host="localhost", user="root", password="root@123", database="Vehicle_Service_DB"
+        )
+        cursor = db_connection.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT appointmenttime FROM Appointments 
+                WHERE appointmentdate = %s AND mechid = %s
+            """, (date, mechid))
+
+            booked_slots = [row[0] for row in cursor.fetchall()]
+            return booked_slots
+
+        except mysql.connector.Error as err:
+            messagebox.showerror("Error", f"Database Error: {err}")
+            return []
+
+        finally:
+            cursor.close()
+            db_connection.close()
 
 
+    def update_available_times(self, event=None):
+        """ Update the available time slots based on existing bookings. """
+        
+        # Get the selected date
+        selected_date = self.calendar.get_date()
 
+        try:
+            # Convert date to correct format
+            date_obj = datetime.strptime(selected_date, '%m/%d/%y')
+            formatted_date = date_obj.strftime('%Y-%m-%d')
+
+            # Fetch booked slots using `mechid`
+            booked_slots = self.get_booked_slots(formatted_date, self.mechid)
+
+            # Define all possible time slots
+            all_time_slots = ["09:00 AM", "10:00 AM", "11:00 AM", "02:00 PM", "03:00 PM", "04:00 PM"]
+
+            # Remove booked slots
+            available_slots = [slot for slot in all_time_slots if slot not in booked_slots]
+
+            if not available_slots:
+                available_slots = ["No slots available"]
+
+            # Update the dropdown options
+            self.time_dropdown.configure(values=available_slots)
+            self.time_dropdown.set(available_slots[0])
+
+        except ValueError:
+            messagebox.showerror("Error", "Invalid date selection!")
 
     def book_service(self):
         """ Opens the booking screen with selected mechanic details. """
         
-        if not hasattr(self, 'selected_mechanic') or not self.selected_mechanic:
+        # Get the selected mechanic data
+        if not hasattr(self, 'mechanics_tree'):
+            messagebox.showerror("Error", "Please search for mechanics first!")
+            return
+
+        selected_item = self.mechanics_tree.selection()
+        if not selected_item:
             messagebox.showerror("Error", "Please select a mechanic to book a service.")
-            return  # ✅ Exit if no mechanic is selected
+            return  
 
-        business_name, service_offered, zip_code, vehicle_type = self.selected_mechanic
+        mechanic_data = self.mechanics_tree.item(selected_item, "values")
+        if not mechanic_data:
+            messagebox.showerror("Error", "No mechanic details found in the selection.")
+            return
 
-        # ✅ Destroy current UI
+        self.selected_mechanic = mechanic_data
+
+        business_name, service_offered, _, vehicle_type = self.selected_mechanic
+
+        # Retrieve mechid from the database
+        db_connection = mysql.connector.connect(
+            host="localhost", user="root", password="root@123", database="Vehicle_Service_DB"
+        )
+        cursor = db_connection.cursor()
+
+        try:
+            cursor.execute("SELECT mechid FROM Mechanic_Businesses WHERE business_name = %s", (business_name,))
+            mechanic_result = cursor.fetchone()
+
+            if not mechanic_result:
+                messagebox.showerror("Error", "Could not find the selected mechanic!")
+                return
+
+            self.mechid = mechanic_result[0]  # Store mechid globally
+
+        finally:
+            cursor.close()
+            db_connection.close()
+
         for widget in self.winfo_children():
             widget.destroy()
 
-        # ✅ Title
         self.title_label = ctk.CTkLabel(self, text="Book Appointment", font=("Arial", 22, "bold"))
         self.title_label.place(relx=0.5, rely=0.05, anchor="center")
 
-        # ✅ Mechanic Details (Pre-filled)
         self.mechanic_label = ctk.CTkLabel(self, text=f"Mechanic: {business_name}", font=("Arial", 16))
         self.mechanic_label.place(relx=0.05, rely=0.15)
 
@@ -776,79 +902,92 @@ class VehicleServiceApp(ctk.CTk):
         self.vehicle_label = ctk.CTkLabel(self, text=f"Vehicle Type: {vehicle_type}", font=("Arial", 16))
         self.vehicle_label.place(relx=0.05, rely=0.25)
 
-        # ✅ Calendar Widget for Date Selection
         self.calendar_label = ctk.CTkLabel(self, text="Select Appointment Date:", font=("Arial", 14))
         self.calendar_label.place(relx=0.05, rely=0.35)
 
         self.calendar = Calendar(self, selectmode="day", year=2025, month=3, day=1)
         self.calendar.place(relx=0.05, rely=0.4)
+        self.calendar.bind("<<CalendarSelected>>", self.update_available_times)
 
-        # ✅ Time Slot Selection
         self.time_label = ctk.CTkLabel(self, text="Select Time Slot:", font=("Arial", 14))
         self.time_label.place(relx=0.05, rely=0.65)
 
-        self.time_options = ["09:00 AM", "10:00 AM", "11:00 AM", "02:00 PM", "03:00 PM", "04:00 PM"]
-        self.time_dropdown = ctk.CTkComboBox(self, values=self.time_options, width=150)
+        self.time_dropdown = ctk.CTkComboBox(self, values=["09:00 AM", "10:00 AM", "11:00 AM", "02:00 PM", "03:00 PM", "04:00 PM"], width=150)
         self.time_dropdown.place(relx=0.05, rely=0.7)
 
-        # ✅ Confirm Button
+        # Initialize available time slots
+        self.update_available_times()
+
         self.confirm_button = ctk.CTkButton(self, text="Confirm Appointment", width=200, 
-                                            command=lambda: self.confirm_booking(business_name, service_offered, vehicle_type))
+                                            command=lambda: self.confirm_booking(business_name, vehicle_type))
         self.confirm_button.place(relx=0.5, rely=0.85, anchor="center")
 
-        # ✅ Back Button
-        self.back_button = ctk.CTkButton(self, text="Back", width=100, command=self.user_dashboard)
-        self.back_button.place(relx=0.05, rely=0.9)
-
-
-
-    def confirm_booking(self, business_name, service_offered, vehicle_type):
-        """ Stores the appointment in the database after user confirmation. """
-        selected_date = self.calendar.get_date()
-        selected_time = self.time_dropdown.get()
-
-        if not selected_date or not selected_time:
-            messagebox.showerror("Error", "Please select a date and time slot!")
-            return
-
+        # Store email in instance variable for back button
         db_connection = mysql.connector.connect(
             host="localhost", user="root", password="root@123", database="Vehicle_Service_DB"
         )
         cursor = db_connection.cursor()
-
+        
         try:
-            # ✅ Find the Mechanic ID from business name
-            cursor.execute("SELECT mechid FROM mechanic_businesses WHERE business_name = %s", (business_name,))
-            mechid = cursor.fetchone()
-
-            if not mechid:
-                messagebox.showerror("Error", "Mechanic not found in the database!")
-                return
-
-            mechid = mechid[0]  # Extract ID from tuple
-
-            # ✅ Insert into Appointments Table
-            cursor.execute(
-                """
-                INSERT INTO appointments (userid, mechid, appointmentdate, appointmenttime, status, typeofvehicle) 
-                VALUES (%s, %s, %s, %s, 'Pending', %s)
-                """,
-                (self.user_id, mechid, selected_date, selected_time, vehicle_type),
-            )
-
-            db_connection.commit()
-            messagebox.showinfo("Success", "Appointment booked successfully!")
-
-            # Redirect user back to dashboard
-            self.user_dashboard()
-
-        except mysql.connector.Error as err:
-            messagebox.showerror("Error", f"Database Error: {err}")
-
+            cursor.execute("SELECT email FROM User WHERE userid = %s", (self.user_id,))
+            result = cursor.fetchone()
+            self.user_email = result[0] if result else "unknown@email.com"
         finally:
             cursor.close()
             db_connection.close()
 
+        self.back_button = ctk.CTkButton(self, text="Back", width=100, 
+                                        command=lambda: self.user_dashboard(self.user_email))
+        self.back_button.place(relx=0.05, rely=0.9)
+
+
+    def confirm_booking(self, business_name, vehicle_type):
+        """ Stores the appointment in the database after user confirmation. """
+        selected_date = self.calendar.get_date()
+        selected_time = self.time_dropdown.get()
+
+        if not selected_date or not selected_time or selected_time == "No slots available":
+            messagebox.showerror("Error", "Please select a valid date and time slot!")
+            return
+
+        try:
+            # Convert date from MM/DD/YY to YYYY-MM-DD
+            date_obj = datetime.strptime(selected_date, '%m/%d/%y')
+            formatted_date = date_obj.strftime('%Y-%m-%d')
+
+            # Convert time from 12-hour to 24-hour format
+            time_obj = datetime.strptime(selected_time, '%I:%M %p')
+            formatted_time = time_obj.strftime('%H:%M:00')
+
+            db_connection = mysql.connector.connect(
+                host="localhost", user="root", password="root@123", database="Vehicle_Service_DB"
+            )
+            cursor = db_connection.cursor()
+
+            try:
+                # Insert the appointment with the correct `mechid`
+                cursor.execute(
+                    """
+                    INSERT INTO Appointments (userid, mechid, appointmentdate, appointmenttime, status, typeofvehicle) 
+                    VALUES (%s, %s, %s, %s, 'Pending', %s)
+                    """,
+                    (self.user_id, self.mechid, formatted_date, formatted_time, vehicle_type)
+                )
+
+                db_connection.commit()
+                messagebox.showinfo("Success", "Appointment booked successfully!")
+                self.user_dashboard(self.user_email)  # Redirect back to dashboard
+
+            except mysql.connector.Error as err:
+                messagebox.showerror("Error", f"Database Error: {err}")
+                print(f"Database error: {err}")
+            finally:
+                cursor.close()
+                db_connection.close()
+
+        except ValueError as e:
+            messagebox.showerror("Error", "Invalid date or time format!")
+            print(f"Date/Time formatting error: {e}")
 
 
 
@@ -880,13 +1019,13 @@ class VehicleServiceApp(ctk.CTk):
         )
         cursor = db_connection.cursor()
 
-        # Fetch only **approved** appointments
+        # Fetch appointments with mechanic details from User table
         query = """
-        SELECT M.firstname, A.appointmentdate, A.typeofvehicle, S.servicename, A.status
+        SELECT U.firstname, A.appointmentdate, A.typeofvehicle, MB.service_type, A.status
         FROM Appointments A
-        JOIN Mechanics M ON A.mechid = M.mechid
-        JOIN Services S ON M.serviceid = S.serviceid
-        WHERE A.userid = %s AND A.status = 'Approved'
+        JOIN User U ON A.mechid = U.userid
+        JOIN Mechanic_Businesses MB ON A.mechid = MB.mechid
+        WHERE A.userid = %s
         """
         cursor.execute(query, (self.user_id,))
         bookings = cursor.fetchall()
@@ -894,9 +1033,9 @@ class VehicleServiceApp(ctk.CTk):
         cursor.close()
         db_connection.close()
 
-        # If no approved bookings found
+        # If no bookings found
         if not bookings:
-            messagebox.showinfo("No Bookings", "No approved appointments found.")
+            messagebox.showinfo("No Bookings", "No appointments found.")
             return
 
         # Create a table frame
@@ -904,7 +1043,7 @@ class VehicleServiceApp(ctk.CTk):
         self.bookings_frame.place(relx=0.05, rely=0.2)
 
         # Table Headers
-        headers = ["Mechanic", "Date", "Type of Vehicle", "Service", "Status"]
+        headers = ["Mechanic", "Date", "Vehicle Type", "Service", "Status"]
         for col_idx, header in enumerate(headers):
             label = ctk.CTkLabel(self.bookings_frame, text=header, font=("Arial", 14, "bold"))
             label.grid(row=0, column=col_idx, padx=20, pady=5)
@@ -916,204 +1055,186 @@ class VehicleServiceApp(ctk.CTk):
                 label.grid(row=row_idx, column=col_idx, padx=20, pady=5)
 
         # Back Button
-        self.back_button = ctk.CTkButton(self, text="Back", width=100, command=self.user_dashboard)
+        self.back_button = ctk.CTkButton(self, text="Back", width=100, command=lambda: self.user_dashboard(None))
         self.back_button.place(relx=0.9, rely=0.9)
 
-
-
-    def book_service(self):
-        selected_mechanic = self.get_selected_mechanic()  # Retrieve selected mechanic from table
-        if not selected_mechanic:
-            messagebox.showerror("Error", "Please select a mechanic to book a service.")
-            return
-
-        # Ask user for appointment details
-        appointment_date = simpledialog.askstring("Input", "Enter Appointment Date (YYYY-MM-DD):")
-        appointment_time = simpledialog.askstring("Input", "Enter Appointment Time (HH:MM AM/PM):")
-
-        if not appointment_date or not appointment_time:
-            messagebox.showerror("Error", "Appointment date and time are required!")
-            return
-
-        try:
-            # Connect to the database
-            db_connection = mysql.connector.connect(
-                host="localhost", user="root", password="root@123", database="Vehicle_Service_DB"
-            )
-            cursor = db_connection.cursor()
-
-            # Insert appointment data
-            query = """
-            INSERT INTO Appointments (userid, mechid, appointmentdate, appointmenttime, status, typeofvehicle) 
-            VALUES (%s, %s, %s, %s, 'Pending', %s)
-            """
-            cursor.execute(query, (self.user_id, selected_mechanic, appointment_date, appointment_time, self.service_entry.get()))
-            db_connection.commit()
-
-            messagebox.showinfo("Success", "Service booked successfully!")
-
-        except mysql.connector.Error as err:
-            messagebox.showerror("Database Error", f"Error: {err}")
-        finally:
-            cursor.close()
-            db_connection.close()
-    
-    def get_selected_mechanic(self):
-        try:
-            selected_item = self.requests_table.focus()
-            if not selected_item:
-                return None
-
-            mechanic_data = self.requests_table.item(selected_item, "values")
-            return mechanic_data[0]
-        except AttributeError:
-            messagebox.showerror("Error", "Mechanics table not found!")
-            return None
-
-
-
     def open_approval_screen(self):
-        """ Fetch pending appointment and open approval screen """
-        db_connection = mysql.connector.connect(
-            host="localhost", user="root", password="root@123", database="Vehicle_Service_DB"
-        )
-        cursor = db_connection.cursor()
-
-        # Fetch pending appointments
-        cursor.execute("""
-            SELECT appointmentid, userid, typeofvehicle, appointmentdate, appointmenttime
-            FROM Appointments WHERE status='Pending' LIMIT 1
-        """)
-        appointment = cursor.fetchone()
-
-        cursor.close()
-        db_connection.close()
-
-        if appointment:
-            appointment_id, user_id, vehicle_type, date, time = appointment
-            service_type = "Oil Change"  # Replace with actual fetched service type
-            issue = "General Maintenance"  # Replace with actual fetched issue
-
-            # Open mechanic approval screen with correct data
-            self.mechanic_approval_screen(appointment_id, user_id, service_type, vehicle_type, issue, f"{date} {time}")
-        else:
-            messagebox.showinfo("No Appointments", "No pending appointments found.")
-
-    def mechanic_approval_screen(self, appointment_id, user_id, service_type, vehicle_type, issue, booking_datetime):
-        """ Mechanic approval/rejection screen for appointments """
+        """ Opens the appointment approval screen (removes calendar). """
+        
+        # Clear previous UI components
         for widget in self.winfo_children():
             widget.destroy()
 
-        # Add background image using CTkImage
-        self.bg_image = CTkImage(dark_image=Image.open("UI/approval_screen.jpg"), size=(1200, 750))
-        self.bg_label = ctk.CTkLabel(self, image=self.bg_image, text="")
-        self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
-
         # Title
-        self.title_label = ctk.CTkLabel(self, text="Accept/Reject Bookings", font=("Arial", 20, "bold"))
+        self.title_label = ctk.CTkLabel(self, text="View & Approve Appointments", font=("Arial", 22, "bold"))
         self.title_label.place(relx=0.5, rely=0.05, anchor="center")
 
-        # Customer Name
-        self.customer_label = ctk.CTkLabel(self, text="Customer Name", font=("Arial", 14))
-        self.customer_label.place(relx=0.05, rely=0.2)
-        self.customer_entry = ctk.CTkEntry(self, width=250)
-        self.customer_entry.place(relx=0.25, rely=0.2)
+        # Appointments List Frame
+        self.appointments_frame = ctk.CTkFrame(self, width=900, height=500)
+        self.appointments_frame.place(relx=0.05, rely=0.15)
 
-        # Fetch customer name from DB
-        db_connection = mysql.connector.connect(host="localhost", user="root", password="root@123", database="Vehicle_Service_DB")
-        cursor = db_connection.cursor()
-        cursor.execute("SELECT firstname, lastname FROM User WHERE userid = %s", (user_id,))
-        customer = cursor.fetchone()
-        cursor.close()
-        db_connection.close()
-        if customer:
-            self.customer_entry.insert(0, f"{customer[0]} {customer[1]}")
+        # Create Treeview for appointments
+        self.appointments_tree = ttk.Treeview(
+            self.appointments_frame,
+            columns=("Time", "Customer", "Vehicle", "Service", "Status", "AppointmentID"),
+            show="headings",
+            height=10
+        )
 
-        # Service Type
-        self.service_label = ctk.CTkLabel(self, text="Type of Service Requesting", font=("Arial", 14))
-        self.service_label.place(relx=0.05, rely=0.3)
-        self.service_entry = ctk.CTkEntry(self, width=250)
-        self.service_entry.insert(0, service_type)
-        self.service_entry.place(relx=0.25, rely=0.3)
+        # Configure columns
+        self.appointments_tree.heading("Time", text="Time")
+        self.appointments_tree.heading("Customer", text="Customer")
+        self.appointments_tree.heading("Vehicle", text="Vehicle Type")
+        self.appointments_tree.heading("Service", text="Service")
+        self.appointments_tree.heading("Status", text="Status")
+        self.appointments_tree.heading("AppointmentID", text="Appointment ID")
 
-        # Vehicle Type
-        self.vehicle_label = ctk.CTkLabel(self, text="Type of Vehicle", font=("Arial", 14))
-        self.vehicle_label.place(relx=0.05, rely=0.4)
-        self.vehicle_entry = ctk.CTkEntry(self, width=250)
-        self.vehicle_entry.insert(0, vehicle_type)
-        self.vehicle_entry.place(relx=0.25, rely=0.4)
+        self.appointments_tree.column("Time", width=100)
+        self.appointments_tree.column("Customer", width=150)
+        self.appointments_tree.column("Vehicle", width=100)
+        self.appointments_tree.column("Service", width=100)
+        self.appointments_tree.column("Status", width=100)
+        self.appointments_tree.column("AppointmentID", width=0, stretch=NO)  # Hidden column
 
-        # Issue Description
-        self.issue_label = ctk.CTkLabel(self, text="Issue", font=("Arial", 14))
-        self.issue_label.place(relx=0.05, rely=0.5)
-        self.issue_entry = ctk.CTkEntry(self, width=250)
-        self.issue_entry.insert(0, issue)
-        self.issue_entry.place(relx=0.25, rely=0.5)
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(self.appointments_frame, orient="vertical", command=self.appointments_tree.yview)
+        self.appointments_tree.configure(yscroll=scrollbar.set)
 
-        # Booking Date & Time
-        self.datetime_label = ctk.CTkLabel(self, text="Booking Date and Time", font=("Arial", 14))
-        self.datetime_label.place(relx=0.05, rely=0.6)
-        self.datetime_entry = ctk.CTkEntry(self, width=250)
-        self.datetime_entry.insert(0, booking_datetime)
-        self.datetime_entry.place(relx=0.25, rely=0.6)
+        # Pack the Treeview and scrollbar
+        self.appointments_tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
 
-        # Accept Button
-        self.accept_button = ctk.CTkButton(self, text="Accept", width=150, command=lambda: self.approve_booking(appointment_id, user_id))
-        self.accept_button.place(relx=0.4, rely=0.75, anchor="center")
+        # Create frame for action buttons
+        self.action_frame = ctk.CTkFrame(self.appointments_frame, height=50)
+        self.action_frame.pack(side="bottom", fill="x", pady=10)
+
+        # Approve Button
+        self.approve_btn = ctk.CTkButton(
+            self.action_frame,
+            text="Approve",
+            width=100,
+            state="disabled"
+        )
+        self.approve_btn.pack(side="left", padx=10)
 
         # Reject Button
-        self.reject_button = ctk.CTkButton(self, text="Reject", width=150, fg_color="red", command=lambda: self.reject_booking(appointment_id, user_id))
-        self.reject_button.place(relx=0.6, rely=0.75, anchor="center")
+        self.reject_btn = ctk.CTkButton(
+            self.action_frame,
+            text="Reject",
+            width=100,
+            fg_color="red",
+            state="disabled"
+        )
+        self.reject_btn.pack(side="left", padx=10)
+
+        # Bind selection event
+        self.appointments_tree.bind('<<TreeviewSelect>>', self.on_appointment_select)
 
         # Back Button
         self.back_button = ctk.CTkButton(self, text="Back", width=100, command=self.mechanic_dashboard)
         self.back_button.place(relx=0.05, rely=0.9)
 
-    def approve_booking(self, appointment_id, user_id):
-        """ Approves an appointment and sends confirmation email """
-        db_connection = mysql.connector.connect(host="localhost", user="root", password="root@123", database="Vehicle_Service_DB")
+        # ✅ Call `show_appointments()` correctly
+        self.show_appointments()
+
+
+
+
+    def on_appointment_select(self, event):
+        """ Enable action buttons when an appointment is selected. """
+
+        selected_item = self.appointments_tree.selection()
+        if not selected_item:
+            return
+
+        # Get the selected appointment data
+        item = self.appointments_tree.item(selected_item[0])  # Get first selected item
+        appointment_data = item['values']
+        
+        if not appointment_data:
+            return
+
+        status = appointment_data[4]  # Status (5th column)
+        appt_id = appointment_data[5]  # Appointment ID (6th hidden column)
+
+        # Enable buttons only for pending appointments
+        if status == 'Pending':
+            self.approve_btn.configure(state="normal", command=lambda: self.handle_appointment(appt_id, "Approved"))
+            self.reject_btn.configure(state="normal", command=lambda: self.handle_appointment(appt_id, "Rejected"))
+        else:
+            self.approve_btn.configure(state="disabled")
+            self.reject_btn.configure(state="disabled")
+
+
+
+    def show_appointments(self, event=None):
+        """ Fetch and display appointments in the table. """
+
+        # Clear existing rows in the Treeview
+        for row in self.appointments_tree.get_children():
+            self.appointments_tree.delete(row)
+
+        db_connection = mysql.connector.connect(
+            host="localhost", user="root", password="root@123", database="Vehicle_Service_DB"
+        )
         cursor = db_connection.cursor()
 
-        # Update appointment status
-        cursor.execute("UPDATE Appointments SET status = 'Approved' WHERE appointmentid = %s", (appointment_id,))
-        db_connection.commit()
+        # ✅ Fetch appointments for the current mechanic
+        query = """
+            SELECT A.appointmenttime, U.firstname, A.typeofvehicle, S.servicename, A.status, A.appointmentid
+            FROM Appointments A
+            JOIN User U ON A.userid = U.userid
+            JOIN Mechanics M ON A.mechid = M.mechid
+            JOIN Services S ON M.serviceid = S.serviceid
+            WHERE M.mechid = %s
+        """
+        cursor.execute(query, (self.user_id,))
+        appointments = cursor.fetchall()
 
-        # Fetch user email
-        cursor.execute("SELECT email FROM User WHERE userid = %s", (user_id,))
-        user_email = cursor.fetchone()[0]
+        # Populate the table
+        for row in appointments:
+            self.appointments_tree.insert("", "end", values=row)
+
         cursor.close()
         db_connection.close()
 
-        # Send confirmation email
-        self.send_email(user_email, "Your Appointment is Approved", "Your appointment has been successfully approved.")
 
-        messagebox.showinfo("Success", "Appointment Approved! Confirmation email sent.")
-        self.mechanic_dashboard()
 
-    def reject_booking(self, appointment_id, user_id):
-        """ Rejects an appointment and notifies the user """
-        db_connection = mysql.connector.connect(host="localhost", user="root", password="root@123", database="Vehicle_Service_DB")
+    def handle_appointment(self, appt_id, status):
+        """ Approves or Rejects an appointment and updates the database. """
+
+        # ✅ Fix the status mapping
+        if status == "Approved":  
+            status = "In Progress"  # 🔹 Convert "Approved" to a valid ENUM value
+
+        # ✅ Ensure status is valid
+        valid_statuses = ["Pending", "In Progress", "Completed"]
+        if status not in valid_statuses:
+            messagebox.showerror("Error", f"Invalid status '{status}'! Allowed: {valid_statuses}")
+            return
+
+        db_connection = mysql.connector.connect(
+            host="localhost", user="root", password="root@123", database="Vehicle_Service_DB"
+        )
         cursor = db_connection.cursor()
 
-        # Update appointment status
-        cursor.execute("UPDATE Appointments SET status = 'Rejected' WHERE appointmentid = %s", (appointment_id,))
-        db_connection.commit()
+        try:
+            # ✅ Update appointment status in the database
+            cursor.execute("UPDATE Appointments SET status = %s WHERE appointmentid = %s", (status, appt_id))
+            db_connection.commit()
 
-        # Fetch user email
-        cursor.execute("SELECT email FROM User WHERE userid = %s", (user_id,))
-        user_email = cursor.fetchone()[0]
-        cursor.close()
-        db_connection.close()
+            # Notify user
+            messagebox.showinfo("Success", f"Appointment {status} successfully!")
 
-        # Send rejection email
-        self.send_email(user_email, "Your Appointment is Rejected", "Unfortunately, your appointment request has been rejected.")
+            # Refresh appointments list
+            self.show_appointments()
 
-        messagebox.showinfo("Rejected", "Appointment Rejected! User has been notified.")
-        self.mechanic_dashboard()
+        except mysql.connector.Error as err:
+            messagebox.showerror("Error", f"Database Error: {err}")
 
-    def send_email(self, recipient, subject, body):
-        """ Sends an email notification to the user """
-        print(f"Email Sent to {recipient}: {subject}")
+        finally:
+            cursor.close()
+            db_connection.close()
 
     def admin_dashboard(self):
         """ Displays the Admin Dashboard UI. """
@@ -1257,10 +1378,6 @@ class VehicleServiceApp(ctk.CTk):
         messagebox.showinfo("Rejected", "Mechanic Business Rejected!")
         self.view_mechanic_requests()  # Refresh request list
 
-
-
-
-    
     def generate_admin_report(self):
         """ Generates a report of registered mechanics and appointments. """
         db_connection = mysql.connector.connect(host="localhost", user="root", password="root@123", database="Vehicle_Service_DB")
