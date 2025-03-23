@@ -167,6 +167,8 @@ ctk.set_default_color_theme("blue")
 class VehicleServiceApp(ctk.CTk):
     def __init__(self):
         super().__init__()
+        self.geometry("1200x750")
+        self.resizable(False, False)
         self.title("Vehicle Service & Maintenance Management System")
         self.geometry("1200x750")
         self.resizable(False, False)
@@ -179,8 +181,9 @@ class VehicleServiceApp(ctk.CTk):
         
         # Add image to the login screen
         self.bg_image = Image.open("UI/login_screen.png")
-        self.bg_image = self.bg_image.resize((1200, 750), Image.LANCZOS)
-        self.bg_image = ImageTk.PhotoImage(self.bg_image)
+        self.bg_image = self.bg_image.resize((2400, 1500), Image.LANCZOS)
+        self.bg_image = CTkImage(light_image=self.bg_image, dark_image=self.bg_image, size=(1200, 750))
+        self.configure(width=1200, height=750)
         self.bg_label = ctk.CTkLabel(self, image=self.bg_image, text="")
         self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
 
@@ -279,7 +282,8 @@ class VehicleServiceApp(ctk.CTk):
         #add image to the registration screen
         self.bg_image = Image.open("UI/RegisterationFrame.jpg")
         self.bg_image = self.bg_image.resize((1200, 750), Image.LANCZOS)
-        self.bg_image = ImageTk.PhotoImage(self.bg_image)
+        self.bg_image = CTkImage(light_image=self.bg_image, dark_image=self.bg_image, size=(1200, 750))
+        self.configure(width=1200, height=750)
         self.bg_label = ctk.CTkLabel(self, image=self.bg_image, text="")
         self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
 
@@ -364,7 +368,7 @@ class VehicleServiceApp(ctk.CTk):
 
         # # Back Button to Login Screen
         # back_icon = Image.open("UI/back.png").resize((30, 30))
-        # self.back_photo = ImageTk.PhotoImage(back_icon)
+        # self.back_photo = CTkImage(light_image=back_icon, dark_image=back_icon, size=(1200, 750))
         # back_button = ctk.CTkButton(self, image=self.back_photo, text="", width=60, height=60, fg_color="white",
         #         hover_color="#D9D9D9", command=self.login_screen)
         # back_button.place(x=920, y=600)
@@ -377,7 +381,8 @@ class VehicleServiceApp(ctk.CTk):
         # Add image to the mechanic dashboard
         self.bg_image = Image.open("UI/mechanic_screen.jpg")
         self.bg_image = self.bg_image.resize((1200, 750), Image.LANCZOS)
-        self.bg_image = ImageTk.PhotoImage(self.bg_image)
+        self.bg_image = CTkImage(light_image=self.bg_image, dark_image=self.bg_image, size=(1200, 750))
+        self.configure(width=1200, height=750)
         self.bg_label = ctk.CTkLabel(self, image=self.bg_image, text="")
         self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
 
@@ -620,7 +625,8 @@ class VehicleServiceApp(ctk.CTk):
         # Add background image
         self.bg_image = Image.open("UI/user_dashboard.jpg")
         self.bg_image = self.bg_image.resize((1200, 750), Image.LANCZOS)
-        self.bg_image = ImageTk.PhotoImage(self.bg_image)
+        self.bg_image = CTkImage(light_image=self.bg_image, dark_image=self.bg_image, size=(1200, 750))
+        self.configure(width=1200, height=750)
         self.bg_label = ctk.CTkLabel(self, image=self.bg_image, text="")
         self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
 
@@ -1244,7 +1250,8 @@ class VehicleServiceApp(ctk.CTk):
         # Background Image
         self.bg_image = Image.open("UI/admin_dashboard.jpg")
         self.bg_image = self.bg_image.resize((1200, 750), Image.LANCZOS)
-        self.bg_image = ImageTk.PhotoImage(self.bg_image)
+        self.bg_image = CTkImage(light_image=self.bg_image, dark_image=self.bg_image, size=(1200, 750))
+        self.configure(width=1200, height=750)
         self.bg_label = ctk.CTkLabel(self, image=self.bg_image, text="")
         self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
 
@@ -1297,14 +1304,14 @@ class VehicleServiceApp(ctk.CTk):
 
         # Approve Button
         approve_icon = Image.open("UI/mark.png").resize((30, 30))
-        self.approve_photo = ImageTk.PhotoImage(approve_icon)
+        self.approve_photo = CTkImage(light_image=approve_icon, dark_image=approve_icon, size=(1200, 750))
         approve_button = ctk.CTkButton(self, image=self.approve_photo, text="", width=60, height=60, fg_color="white",
                                     hover_color="#D9D9D9", command=self.approve_selected_mechanic)
         approve_button.place(x=600, y=600)
 
         # Reject Button
         reject_icon = Image.open("UI/decline.png").resize((40, 40))
-        self.reject_photo = ImageTk.PhotoImage(reject_icon)
+        self.reject_photo = CTkImage(light_image=reject_icon, dark_image=reject_icon, size=(1200, 750))
         reject_button = ctk.CTkButton(self, image=self.reject_photo, text="", width=60, height=60, fg_color="white",
                                     hover_color="#D9D9D9", command=self.reject_selected_mechanic)
         reject_button.place(x=700, y=600)
