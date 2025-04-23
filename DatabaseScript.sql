@@ -161,6 +161,23 @@ DEFAULT CHARACTER SET = utf8mb4
 COLLATE = utf8mb4_0900_ai_ci;
 
 
+-- -----------------------------------------------------
+-- Data for table `vehicle_service_db`.`services`
+-- -----------------------------------------------------
+INSERT INTO `vehicle_service_db`.`services` (`serviceid`, `servicename`, `typeofvehicle`) VALUES
+(1, 'Oil Change', 'Cars'),
+(2, 'Tire Replacement', 'Cars'),
+(3, 'Brake Service', 'Cars'),
+(4, 'Engine Tune-up', 'Cars'),
+(5, 'Wheel Alignment', 'Cars'),
+(6, 'General Checkup', 'Cars'),
+(7, 'Oil Change', 'Bikes'),
+(8, 'Tire Replacement', 'Bikes'),
+(9, 'Engine Service', 'Bikes'),
+(10, 'Oil Change', 'Trucks'),
+(11, 'Tire Replacement', 'Trucks'),
+(12, 'Engine Service', 'Trucks');
+
 SET SQL_MODE=@OLD_SQL_MODE;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;
